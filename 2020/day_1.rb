@@ -223,7 +223,26 @@ def find_summand_for(sum = 2020, numbers = NUMBERS)
   []
 end
 
-summands = find_summand_for
-exit(1) if summands.empty?
+def find_three_summands_for(sum = 2020, numbers = NUMBERS)
+  while numbers.count >= 3
+    candidate = numbers.pop
+    result = find_summand_for(sum - candidate, numbers)
 
-puts summands.reduce(:*)
+    if !result.empty?
+      return result << candidate
+    end
+  end
+  []
+end
+
+if $PROGRAM_NAME =~ /day_1.rb$/
+  summands = find_summand_for
+  exit(1) if summands.empty?
+
+  puts "Part 1: Product of summands #{summands.reduce(:*)}"
+
+  summands = find_three_summands_for
+  exit(1) if summands.empty?
+
+  puts "Part 2: Product of summands #{summands.reduce(:*)}"
+end
