@@ -3,16 +3,69 @@ require 'pry'
 
 DATA = File.read(File.join(__dir__, 'data'))
 
+module DataValidators
+  NumericRangeRule = ::Struct.new(:min, :max)
+  class NumericRangeRule
+    def valid?(data)
+      (min..max).include?(Float(data))
+    rescue ArgumentError
+      false
+    end
+  end
+
+  RegexRule = ::Struct.new(:pattern)
+  class RegexRule
+    def valid?(data)
+      data =~ pattern
+    end
+  end
+
+  class FixesValuesRule
+    attr_reader :allowed_values
+    def initialize(allowed_values)
+      @allowed_values = allowed_values
+    end
+
+    def valid?(data)
+      allowed_values.include?(data)
+    end
+  end
+
+  NumericRangeFromCaptureRule = Struct.new(:pattern, :min, :max)
+  class NumericRangeFromCaptureRule
+    def valid?(data)
+      match = pattern.match(data)
+
+      NumericRangeRule.new(min, max).valid?(match.captures.first) if match
+    end
+  end
+
+  class OrRule
+    attr_reader :rule1, :rule2
+    def initialize(rule1, rule2)
+      @rule1 = rule1
+      @rule2 = rule2
+    end
+
+    def valid?(data)
+      rule1.valid?(data) || rule2.valid?(data)
+    end
+  end
+end
+
 class Passport
   REQUIRED_FIELDS = %w[byr iyr eyr hgt hcl ecl pid].freeze
   DATA_VALID_REGEXES = {
-    'byr' => /^(19[2-9]\d|200[0-2])$/,
-    'iyr' => /^(201\d|2020)$/,
-    'eyr' => /^(202\d|2030)$/,
-    'hgt' => /^(1[5-8]\dcm|19[0-3]cm|59in|6\din|7[0-6]in)$/,
-    'hcl' => /^#[0-9a-f]{6,6}$/,
-    'ecl' => /^(amb|blu|brn|gry|grn|hzl|oth)$/,
-    'pid' => /^\d{9,9}$/
+    'byr' => DataValidators::NumericRangeRule.new(1920, 2002),
+    'iyr' => DataValidators::NumericRangeRule.new(2010, 2020),
+    'eyr' => DataValidators::NumericRangeRule.new(2020, 2030),
+    'hgt' => DataValidators::OrRule.new(
+      DataValidators::NumericRangeFromCaptureRule.new(/^(\d+)cm$/, 150, 193),
+      DataValidators::NumericRangeFromCaptureRule.new(/^(\d+)in$/, 59, 76)
+    ),
+    'hcl' => DataValidators::RegexRule.new(/^#[0-9a-f]{6,6}$/),
+    'ecl' => DataValidators::FixesValuesRule.new(%w[amb blu brn gry grn hzl oth]),
+    'pid' => DataValidators::RegexRule.new(/^\d{9,9}$/)
   }
 
   attr_reader :fields
@@ -25,15 +78,7 @@ class Passport
   end
 
   def valid_data?
-    valid_fields? && DATA_VALID_REGEXES.all? { |field, regex| fields[field] =~ regex }
-  end
-
-  def print_invalid_fields
-    return unless valid_fields?
-
-    DATA_VALID_REGEXES.each do |field, regex|
-      puts "field: #{field}, invalid for #{fields[field]} validated by #{regex}" unless fields[field] =~ regex
-    end
+    valid_fields? && DATA_VALID_REGEXES.all? { |field, validator| validator.valid?(fields[field]) }
   end
 end
 
