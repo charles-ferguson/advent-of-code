@@ -11,6 +11,41 @@ import (
 
 type Report []int
 
+func (report Report) createDampenedReport(index int) Report {
+	dampenedReport := make(Report, len(report)-1)
+	for i := 0; i < len(report)-1; i++ {
+		if i < index {
+			dampenedReport[i] = report[i]
+		} else {
+			dampenedReport[i] = report[i+1]
+		}
+	}
+	return dampenedReport
+}
+
+func (report Report) isMonotonic() (bool, int) {
+	isIncreasing := report[0] < report[len(report)-1]
+	for i := 1; i < len(report); i++ {
+		if isIncreasing && report[i] < report[i-1] {
+			return false, i
+		}
+		if !isIncreasing && report[i] > report[i-1] {
+			return false, i
+		}
+	}
+	return true, -1
+}
+
+func (report Report) allIncrementsAreSafe() (bool, int) {
+	for i := 1; i < len(report); i++ {
+		diff := math.Abs(float64(report[i] - report[i-1]))
+		if diff < 1 || diff > 3 {
+			return false, i
+		}
+	}
+	return true, -1
+}
+
 func parseReports(filePath string) []Report {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -40,79 +75,46 @@ func parseReports(filePath string) []Report {
 	return reports
 }
 
-func countSafeReports(reports []Report) int {
+func countSafeReports(reports []Report, allowance int) int {
 	count := 0
 	for _, report := range reports {
-		if !reportIsMonotonic(report) {
-			continue
-		}
+		exceptions := 0
 
-		if !allIncrementsAreSafe(report) {
-			continue
-		}
-		count++
-	}
-	return count
-}
-
-func dampedReportSafe(report Report) bool {
-	for i := 0; i < len(report); i++ {
-		dampenedReport := make(Report, len(report)-1)
-		for j := 0; j < len(report)-1; j++ {
-			if i > j {
-				dampenedReport[j] = report[j]
-			} else if i <= j {
-				dampenedReport[j] = report[j+1]
+		for exceptions <= allowance {
+			reportIsMonotonic, index := report.isMonotonic()
+			if reportIsMonotonic {
+				break
 			}
-		}
-		if reportIsMonotonic(dampenedReport) && allIncrementsAreSafe(dampenedReport) {
-			return true
-		}
-	}
-	return false
-}
 
-func countSafeReportsWithDamper(reports []Report) int {
-	count := 0
-	for _, report := range reports {
-		if dampedReportSafe(report) {
+			exceptions++
+			report = report.createDampenedReport(index)
+		}
+
+		for exceptions <= allowance {
+			reportAllIncrementsAreSafe, index := report.allIncrementsAreSafe()
+			if reportAllIncrementsAreSafe {
+				break
+			}
+
+			exceptions++
+			report = report.createDampenedReport(index)
+		}
+
+		if exceptions <= allowance {
 			count++
 		}
 	}
 	return count
 }
 
-func allIncrementsAreSafe(report Report) bool {
-
-	for i := 1; i < len(report); i++ {
-		diff := math.Abs(float64(report[i] - report[i-1]))
-		if diff < 1 || diff > 3 {
-			return false
-		}
-	}
-	return true
-}
-func reportIsMonotonic(report Report) bool {
-	isIncreasing := report[0] < report[len(report)-1]
-	for i := 1; i < len(report); i++ {
-		if isIncreasing && report[i] < report[i-1] {
-			return false
-		}
-		if !isIncreasing && report[i] > report[i-1] {
-			return false
-		}
-	}
-	return true
-}
-
 func FirstStar() {
 	reports := parseReports("input.data")
-	fmt.Printf("Safe Reports: %d\n", countSafeReports(reports))
+	fmt.Printf("Safe Reports: %d\n", countSafeReports(reports, 0))
 }
 
 func SecondStar() {
 	reports := parseReports("input.data")
-	fmt.Printf("Safe Damped Reports: %d\n", countSafeReportsWithDamper(reports))
+	fmt.Printf("Safe Damped Reports: %d\n", countSafeReports(reports, 1))
 }
 
 func main() {
